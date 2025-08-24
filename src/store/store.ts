@@ -1,108 +1,161 @@
-import { configureStore, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { JobStatus, RequestStatus } from '../types/enums';
-import { 
-  AppState, 
-  JobData, 
-  DatabaseStats, 
-  ScrapeResponse, 
-  JobStatusResponse, 
-  DatabaseStatsResponse, 
-  InfoRequestResponse 
-} from '../types/schema';
-
-// Initial state
-const initialState: AppState = {
-  currentJob: null,
-  databaseStats: {
-    totalPostcodes: 0,
-    recentEntries: [],
-    regionCounts: {}
-  },
-  requestStatus: RequestStatus.IDLE,
-  states: []
-};
-
-// App slice
-const appSlice = createSlice({
-  name: 'app',
-  initialState,
-  reducers: {
-    setCurrentJob: (state, action: PayloadAction<JobData | null>) => {
-      state.currentJob = action.payload;
-    },
-    updateDatabaseStats: (state, action: PayloadAction<DatabaseStats>) => {
-      state.databaseStats = action.payload;
-    },
-    setRequestStatus: (state, action: PayloadAction<RequestStatus>) => {
-      state.requestStatus = action.payload;
-    },
-    setStates: (state, action: PayloadAction<string[]>) => {
-      state.states = action.payload;
-    }
-  }
-});
+import { configureStore, createSlice, createApi, fetchBaseQuery } from '@reduxjs/toolkit';
+import type { PayloadAction } from '@reduxjs/toolkit';
+import { PostcodeData, ScrapingJob, DatabaseStats, ScrapingFormData, ApiResponse } from '../types/schema';
+import { ScrapingStatus } from '../types/enums';
+import { mockPostcodeData, mockScrapingJobs, mockDatabaseStats } from '../data/postcodeMockData';
 
 // API slice
-export const api = createApi({
-  reducerPath: 'api',
-  baseQuery: fetchBaseQuery({ baseUrl: '/' }),
-  tagTypes: ['Job', 'DatabaseStats'],
+export const postcodeApi = createApi({
+  reducerPath: 'postcodeApi',
+  baseQuery: fetchBaseQuery({
+    baseUrl: '/',
+    prepareHeaders: (headers) => {
+      headers.set('Content-Type', 'application/json');
+      return headers;
+    },
+  }),
+  tagTypes: ['PostcodeData', 'ScrapingJob', 'DatabaseStats'],
   endpoints: (builder) => ({
-    startScraping: builder.mutation<ScrapeResponse, { state: string; city?: string }>({
-      query: (data) => ({
-        url: 'scrape',
-        method: 'POST',
-        body: new URLSearchParams({
-          state: data.state,
-          ...(data.city && { city: data.city })
-        }),
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      }),
-      invalidatesTags: ['DatabaseStats'],
+    getPostcodeData: builder.query<PostcodeData[], void>({
+      query: () => 'api/postcode-data',
+      transformResponse: (response: any) => {
+        // Handle both direct array and wrapped response
+        return Array.isArray(response) ? response : response.data || [];
+      },
+      providesTags: ['PostcodeData'],
     }),
-    getJobStatus: builder.query<JobStatusResponse, string>({
-      query: (jobId) => `job/${jobId}`,
-      providesTags: (result, error, jobId) => [{ type: 'Job', id: jobId }],
+    getScrapingJobs: builder.query<ScrapingJob[], void>({
+      query: () => 'api/scraping-jobs',
+      transformResponse: (response: any) => {
+        return Array.isArray(response) ? response : response.data || [];
+      },
+      providesTags: ['ScrapingJob'],
     }),
-    getDatabaseStats: builder.query<DatabaseStatsResponse, void>({
-      query: () => 'database-stats',
+    getDatabaseStats: builder.query<DatabaseStats, void>({
+      query: () => 'api/database-stats',
+      transformResponse: (response: any) => {
+        return response.data || response;
+      },
       providesTags: ['DatabaseStats'],
     }),
-    requestInfo: builder.mutation<InfoRequestResponse, { name?: string; email?: string; message?: string }>({
-      query: (data) => ({
-        url: 'request-info',
+    startScrapingJob: builder.mutation<ApiResponse<ScrapingJob>, ScrapingFormData>({
+      query: (formData) => ({
+        url: 'api/start-scraping',
         method: 'POST',
-        body: new URLSearchParams(data),
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        body: formData,
       }),
+      transformResponse: (response: any) => {
+        return response;
+      },
+      invalidatesTags: ['ScrapingJob'],
+    }),
+    pauseScrapingJob: builder.mutation<ApiResponse<void>, string>({
+      query: (jobId) => ({
+        url: `api/pause-job/${jobId}`,
+        method: 'POST',
+      }),
+      transformResponse: (response: any) => {
+        return response;
+      },
+      invalidatesTags: ['ScrapingJob'],
+    }),
+    resumeScrapingJob: builder.mutation<ApiResponse<void>, string>({
+      query: (jobId) => ({
+        url: `api/resume-job/${jobId}`,
+        method: 'POST',
+      }),
+      transformResponse: (response: any) => {
+        return response;
+      },
+      invalidatesTags: ['ScrapingJob'],
+    }),
+    cancelScrapingJob: builder.mutation<ApiResponse<void>, string>({
+      query: (jobId) => ({
+        url: `api/cancel-job/${jobId}`,
+        method: 'POST',
+      }),
+      transformResponse: (response: any) => {
+        return response;
+      },
+      invalidatesTags: ['ScrapingJob'],
     }),
   }),
 });
 
-// Export actions and selectors
-export const { setCurrentJob, updateDatabaseStats, setRequestStatus, setStates } = appSlice.actions;
+// App state slice
+interface AppState {
+  selectedJob: string | null;
+  isScrapingFormOpen: boolean;
+  notifications: Array<{
+    id: string;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+    timestamp: string;
+  }>;
+}
 
-// Export API hooks
+const initialState: AppState = {
+  selectedJob: null,
+  isScrapingFormOpen: false,
+  notifications: []
+};
+
+const appSlice = createSlice({
+  name: 'app',
+  initialState,
+  reducers: {
+    setSelectedJob: (state, action: PayloadAction<string | null>) => {
+      state.selectedJob = action.payload;
+    },
+    setScrapingFormOpen: (state, action: PayloadAction<boolean>) => {
+      state.isScrapingFormOpen = action.payload;
+    },
+    addNotification: (state, action: PayloadAction<Omit<AppState['notifications'][0], 'id' | 'timestamp'>>) => {
+      const notification = {
+        ...action.payload,
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString()
+      };
+      state.notifications.unshift(notification);
+      // Keep only last 10 notifications
+      if (state.notifications.length > 10) {
+        state.notifications = state.notifications.slice(0, 10);
+      }
+    },
+    removeNotification: (state, action: PayloadAction<string>) => {
+      state.notifications = state.notifications.filter(n => n.id !== action.payload);
+    },
+    clearNotifications: (state) => {
+      state.notifications = [];
+    }
+  }
+});
+
+export const { 
+  setSelectedJob, 
+  setScrapingFormOpen, 
+  addNotification, 
+  removeNotification, 
+  clearNotifications 
+} = appSlice.actions;
+
 export const {
-  useStartScrapingMutation,
-  useGetJobStatusQuery,
+  useGetPostcodeDataQuery,
+  useGetScrapingJobsQuery,
   useGetDatabaseStatsQuery,
-  useRequestInfoMutation,
-} = api;
+  useStartScrapingJobMutation,
+  usePauseScrapingJobMutation,
+  useResumeScrapingJobMutation,
+  useCancelScrapingJobMutation
+} = postcodeApi;
 
-// Configure store
 export const store = configureStore({
   reducer: {
     app: appSlice.reducer,
-    [api.reducerPath]: api.reducer,
+    [postcodeApi.reducerPath]: postcodeApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(api.middleware),
+    getDefaultMiddleware().concat(postcodeApi.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

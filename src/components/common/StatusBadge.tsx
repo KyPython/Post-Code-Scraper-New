@@ -1,91 +1,102 @@
 import React from 'react';
-import { Chip, ChipProps } from '@mui/material';
+import { Chip } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { JobStatus } from '../../types/enums';
-import { formatJobStatus } from '../../utils/formatters';
+import { ScrapingStatus } from '../../types/enums';
+import { formatStatus } from '../../utils/formatters';
+import CheckOutlinedIcon from '@mui/icons-material/CheckOutlined';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import PauseIcon from '@mui/icons-material/Pause';
+import HourglassTopOutlinedIcon from '@mui/icons-material/HourglassTopOutlined';
+import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 
-// Icons
-import ScheduleOutlinedIcon from '@mui/icons-material/ScheduleOutlined';
-import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
-import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
-import BugReportOutlinedIcon from '@mui/icons-material/BugReportOutlined';
-
-interface StatusBadgeProps extends Omit<ChipProps, 'color' | 'variant'> {
-  status: JobStatus;
-}
-
-const StyledChip = styled(Chip)<{ status: JobStatus }>(({ theme, status }) => {
-  const getStatusColor = () => {
+const StyledChip = styled(Chip)<{ status: ScrapingStatus }>(({ theme, status }) => {
+  const getStatusColors = () => {
     switch (status) {
-      case JobStatus.PENDING:
-        return {
-          backgroundColor: theme.palette.warning.light,
-          color: theme.palette.warning.dark,
-          borderColor: theme.palette.warning.main,
-        };
-      case JobStatus.RUNNING:
-        return {
-          backgroundColor: theme.palette.info.light,
-          color: theme.palette.info.dark,
-          borderColor: theme.palette.info.main,
-        };
-      case JobStatus.COMPLETED:
+      case ScrapingStatus.COMPLETED:
         return {
           backgroundColor: theme.palette.success.light,
           color: theme.palette.success.dark,
-          borderColor: theme.palette.success.main,
+          borderColor: theme.palette.success.main
         };
-      case JobStatus.FAILED:
+      case ScrapingStatus.ERROR:
         return {
           backgroundColor: theme.palette.error.light,
           color: theme.palette.error.dark,
-          borderColor: theme.palette.error.main,
+          borderColor: theme.palette.error.main
         };
+      case ScrapingStatus.RUNNING:
+        return {
+          backgroundColor: theme.palette.info.light,
+          color: theme.palette.info.dark,
+          borderColor: theme.palette.info.main
+        };
+      case ScrapingStatus.PAUSED:
+        return {
+          backgroundColor: theme.palette.warning.light,
+          color: theme.palette.warning.dark,
+          borderColor: theme.palette.warning.main
+        };
+      case ScrapingStatus.IDLE:
       default:
         return {
           backgroundColor: theme.palette.grey[100],
           color: theme.palette.grey[700],
-          borderColor: theme.palette.grey[300],
+          borderColor: theme.palette.grey[300]
         };
     }
   };
 
-  const colors = getStatusColor();
-  
+  const colors = getStatusColors();
+
   return {
-    ...colors,
+    backgroundColor: colors.backgroundColor,
+    color: colors.color,
     border: `1px solid ${colors.borderColor}`,
     fontWeight: 500,
     '& .MuiChip-icon': {
-      color: colors.color,
-    },
+      color: colors.color
+    }
   };
 });
 
-const getStatusIcon = (status: JobStatus) => {
-  switch (status) {
-    case JobStatus.PENDING:
-      return <ScheduleOutlinedIcon />;
-    case JobStatus.RUNNING:
-      return <SettingsOutlinedIcon />;
-    case JobStatus.COMPLETED:
-      return <CheckCircleOutlinedIcon />;
-    case JobStatus.FAILED:
-      return <BugReportOutlinedIcon />;
-    default:
-      return undefined;
-  }
-};
+interface StatusBadgeProps {
+  status: ScrapingStatus;
+  size?: 'small' | 'medium';
+  showIcon?: boolean;
+}
 
-export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, ...props }) => {
+const StatusBadge: React.FC<StatusBadgeProps> = ({ 
+  status, 
+  size = 'small', 
+  showIcon = true 
+}) => {
+  const getStatusIcon = () => {
+    if (!showIcon) return undefined;
+
+    switch (status) {
+      case ScrapingStatus.COMPLETED:
+        return <CheckOutlinedIcon />;
+      case ScrapingStatus.ERROR:
+        return <ErrorOutlineIcon />;
+      case ScrapingStatus.RUNNING:
+        return <HourglassTopOutlinedIcon />;
+      case ScrapingStatus.PAUSED:
+        return <PauseIcon />;
+      case ScrapingStatus.IDLE:
+      default:
+        return <FiberManualRecordIcon />;
+    }
+  };
+
   return (
     <StyledChip
       status={status}
-      label={formatJobStatus(status)}
-      icon={getStatusIcon(status)}
+      label={formatStatus(status)}
+      size={size}
+      icon={getStatusIcon()}
       variant="outlined"
-      size="small"
-      {...props}
     />
   );
 };
+
+export default StatusBadge;

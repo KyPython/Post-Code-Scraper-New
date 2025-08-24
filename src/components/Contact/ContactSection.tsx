@@ -1,241 +1,112 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Card,
   CardContent,
   Typography,
-  Button,
   Stack,
-  Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
+  Button,
+  Box,
+  Link
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { useRequestInfoMutation } from '../../store/store';
-import { RequestStatus } from '../../types/enums';
-
-// Icons
-import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import EmailIcon from '@mui/icons-material/Email';
+import GitHubIcon from '@mui/icons-material/GitHub';
+import BugReportIcon from '@mui/icons-material/BugReport';
+import HelpIcon from '@mui/icons-material/Help';
 
 const StyledCard = styled(Card)(({ theme }) => ({
-  borderRadius: theme.spacing(2),
-  boxShadow: theme.shadows[2],
-  border: `1px solid ${theme.palette.secondary.main}30`,
-  background: `linear-gradient(135deg, ${theme.palette.secondary.main}08 0%, ${theme.palette.primary.main}05 100%)`,
+  background: `linear-gradient(135deg, ${theme.palette.primary.main}08 0%, ${theme.palette.secondary.main}08 100%)`,
+  border: `1px solid ${theme.palette.divider}`,
+  borderRadius: theme.spacing(2)
 }));
 
 const ContactButton = styled(Button)(({ theme }) => ({
-  borderRadius: theme.spacing(1),
-  padding: theme.spacing(1.5, 4),
-  fontSize: '1rem',
-  fontWeight: 600,
+  justifyContent: 'flex-start',
   textTransform: 'none',
-  boxShadow: theme.shadows[2],
+  padding: theme.spacing(1.5, 2),
+  borderRadius: theme.spacing(1),
   '&:hover': {
-    boxShadow: theme.shadows[4],
-    transform: 'translateY(-1px)',
-  },
-  transition: 'all 0.2s ease-in-out',
+    backgroundColor: theme.palette.action.hover
+  }
 }));
 
-export const ContactSection: React.FC = () => {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    message: '',
-  });
-  const [requestStatus, setRequestStatus] = useState<RequestStatus>(RequestStatus.IDLE);
-  const [requestInfo, { isLoading }] = useRequestInfoMutation();
-
-  const handleOpenDialog = () => {
-    setDialogOpen(true);
-    setRequestStatus(RequestStatus.IDLE);
-  };
-
-  const handleCloseDialog = () => {
-    setDialogOpen(false);
-    setFormData({ name: '', email: '', message: '' });
-    setRequestStatus(RequestStatus.IDLE);
-  };
-
-  const handleInputChange = (field: keyof typeof formData) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: e.target.value,
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      setRequestStatus(RequestStatus.LOADING);
-      const result = await requestInfo(formData).unwrap();
-      
-      if (result.status === 'success') {
-        setRequestStatus(RequestStatus.SUCCESS);
-        setTimeout(() => {
-          handleCloseDialog();
-        }, 2000);
-      } else {
-        setRequestStatus(RequestStatus.ERROR);
-      }
-    } catch (err) {
-      console.error('Failed to send request:', err);
-      setRequestStatus(RequestStatus.ERROR);
+const ContactSection: React.FC = () => {
+  const contactOptions = [
+    {
+      icon: <EmailIcon />,
+      title: 'Email Support',
+      description: 'Get help with technical issues',
+      action: 'mailto:support@postcodescraper.com',
+      label: 'Send Email'
+    },
+    {
+      icon: <GitHubIcon />,
+      title: 'GitHub Repository',
+      description: 'View source code and contribute',
+      action: 'https://github.com/postcode-scraper',
+      label: 'View on GitHub'
+    },
+    {
+      icon: <BugReportIcon />,
+      title: 'Report Bug',
+      description: 'Found an issue? Let us know',
+      action: 'https://github.com/postcode-scraper/issues',
+      label: 'Report Issue'
+    },
+    {
+      icon: <HelpIcon />,
+      title: 'Documentation',
+      description: 'Learn how to use the scraper',
+      action: 'https://docs.postcodescraper.com',
+      label: 'View Docs'
     }
-  };
-
-  const handleQuickRequest = async () => {
-    try {
-      const result = await requestInfo({}).unwrap();
-      
-      if (result.status === 'success') {
-        setRequestStatus(RequestStatus.SUCCESS);
-      } else {
-        setRequestStatus(RequestStatus.ERROR);
-      }
-    } catch (err) {
-      console.error('Failed to send request:', err);
-      setRequestStatus(RequestStatus.ERROR);
-    }
-  };
+  ];
 
   return (
-    <>
-      <StyledCard>
-        <CardContent sx={{ p: 4 }}>
-          <Stack spacing={3}>
-            <Stack direction="row" alignItems="center" spacing={2}>
-              <InfoOutlinedIcon 
-                sx={{ 
-                  fontSize: 32, 
-                  color: 'secondary.main',
-                }} 
-              />
-              <Typography variant="h4" component="h2" color="secondary.main">
-                Need More Information?
-              </Typography>
-            </Stack>
-
-            <Typography variant="body1" color="text.secondary">
-              Interested in the full dataset, custom scraping features, or API access? 
-              Get in touch to learn more about our premium offerings.
+    <StyledCard>
+      <CardContent>
+        <Stack spacing={3}>
+          <Stack spacing={1}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Need Help?
             </Typography>
-
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <ContactButton
-                variant="contained"
-                color="secondary"
-                startIcon={<EmailOutlinedIcon />}
-                onClick={handleOpenDialog}
-                fullWidth
-              >
-                Send Detailed Request
-              </ContactButton>
-              
-              <ContactButton
-                variant="outlined"
-                color="secondary"
-                onClick={handleQuickRequest}
-                disabled={isLoading}
-                fullWidth
-              >
-                {isLoading ? 'Sending...' : 'Quick Contact'}
-              </ContactButton>
-            </Stack>
-
-            {requestStatus === RequestStatus.SUCCESS && (
-              <Alert severity="success">
-                Request sent successfully! We'll contact you soon.
-              </Alert>
-            )}
-
-            {requestStatus === RequestStatus.ERROR && (
-              <Alert severity="error">
-                Failed to send request. Please try again.
-              </Alert>
-            )}
+            <Typography variant="body2" color="text.secondary">
+              Get support, report issues, or contribute to the project
+            </Typography>
           </Stack>
-        </CardContent>
-      </StyledCard>
 
-      <Dialog 
-        open={dialogOpen} 
-        onClose={handleCloseDialog}
-        maxWidth="sm"
-        fullWidth
-      >
-        <form onSubmit={handleSubmit}>
-          <DialogTitle>
-            Contact Us for More Information
-          </DialogTitle>
-          
-          <DialogContent>
-            <Stack spacing={3} sx={{ mt: 1 }}>
-              <TextField
-                label="Name"
-                value={formData.name}
-                onChange={handleInputChange('name')}
-                fullWidth
-                variant="outlined"
-              />
-              
-              <TextField
-                label="Email"
-                type="email"
-                value={formData.email}
-                onChange={handleInputChange('email')}
-                fullWidth
-                variant="outlined"
-              />
-              
-              <TextField
-                label="Message"
-                value={formData.message}
-                onChange={handleInputChange('message')}
-                multiline
-                rows={4}
-                fullWidth
-                variant="outlined"
-                placeholder="Tell us about your specific needs..."
-              />
+          <Stack spacing={1}>
+            {contactOptions.map((option, index) => (
+              <ContactButton
+                key={index}
+                startIcon={option.icon}
+                component={Link}
+                href={option.action}
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{ color: 'inherit', textDecoration: 'none' }}
+              >
+                <Stack sx={{ textAlign: 'left' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {option.title}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {option.description}
+                  </Typography>
+                </Stack>
+              </ContactButton>
+            ))}
+          </Stack>
 
-              {requestStatus === RequestStatus.SUCCESS && (
-                <Alert severity="success">
-                  Request sent successfully! We'll contact you soon.
-                </Alert>
-              )}
-
-              {requestStatus === RequestStatus.ERROR && (
-                <Alert severity="error">
-                  Failed to send request. Please try again.
-                </Alert>
-              )}
-            </Stack>
-          </DialogContent>
-          
-          <DialogActions sx={{ p: 3 }}>
-            <Button onClick={handleCloseDialog}>
-              Cancel
-            </Button>
-            <Button 
-              type="submit"
-              variant="contained"
-              color="secondary"
-              disabled={isLoading || requestStatus === RequestStatus.SUCCESS}
-            >
-              {isLoading ? 'Sending...' : 'Send Request'}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
-    </>
+          <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>
+            <Typography variant="caption" color="text.secondary" align="center" display="block">
+              Postcode Scraper v1.0.0 • Built with ❤️ for data enthusiasts
+            </Typography>
+          </Box>
+        </Stack>
+      </CardContent>
+    </StyledCard>
   );
 };
+
+export default ContactSection;

@@ -1,15 +1,25 @@
-// Job status types
-export enum JobStatus {
-  PENDING = 'pending',
-  RUNNING = 'running', 
+export enum ScrapingStatus {
+  IDLE = 'idle',
+  RUNNING = 'running',
   COMPLETED = 'completed',
-  FAILED = 'failed'
+  ERROR = 'error',
+  PAUSED = 'paused'
 }
 
-// Request status types
-export enum RequestStatus {
-  IDLE = 'idle',
-  LOADING = 'loading',
-  SUCCESS = 'success', 
-  ERROR = 'error'
+export enum JobType {
+  POSTCODE_SCRAPING = 'postcode_scraping',
+  DATA_VALIDATION = 'data_validation',
+  EXPORT = 'export'
+}
+
+export enum DataSource {
+  GEONAMES = 'geonames',
+  POSTCODE_API = 'postcode_api',
+  MANUAL = 'manual'
+}
+
+export enum ExportFormat {
+  CSV = 'csv',
+  JSON = 'json',
+  XLSX = 'xlsx'
 }
