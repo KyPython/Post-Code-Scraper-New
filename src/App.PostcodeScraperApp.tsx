@@ -27,6 +27,12 @@ const MainContent = styled(Container)(({ theme }) => ({
 const AppContent: React.FC = () => {
   const { data: jobs = [] } = useGetScrapingJobsQuery();
 
+  // Debug info to verify this is the new UI
+  React.useEffect(() => {
+    console.log('🚀 New Postcode Scraper App is running!');
+    console.log('📊 Jobs loaded:', jobs.length);
+  }, [jobs]);
+
   return (
     <AppContainer>
       <Header />

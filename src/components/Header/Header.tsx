@@ -95,10 +95,10 @@ const Header: React.FC = () => {
           />
           <Stack>
             <Typography variant="h6" component="div" sx={{ fontWeight: 700 }}>
-              Postcode Scraper
+              Postcode Scraper v2.0
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1 }}>
-              {process.env.NODE_ENV === 'development' ? 'Development Mode' : 'Advanced Data Collection Tool'}
+              {process.env.NODE_ENV === 'development' ? 'Development Mode - NEW UI' : 'Advanced Data Collection Tool'}
             </Typography>
           </Stack>
         </LogoSection>
