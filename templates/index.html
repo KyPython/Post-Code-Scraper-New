@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Postcode Scraper</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simpledotcss@2.2.0/simple.min.css">
+    <style>
+        /* body { font-family: sans-serif; margin: 20px; } */ /* Replaced by simple.css */
+        .job-status { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
+        .results-table { margin-top: 15px; }
+        .hidden { display: none; }
+        .custom-select-wrapper {
+            position: relative;
+            width: 100%;
+        }
+        
+        select#state {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ced4da;
+        }
+        
+        select#state option {
+            padding: 8px;
+        }
+        
+        /* Make the dropdown more mobile-friendly */
+        @media (max-width: 768px) {
+            .custom-select-wrapper {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Postcode Scraper</h1>
+
+    <form id="scrape-form">
+        <div class="form-group">
+            <label for="state">Select State:</label>
+            <select name="state" id="state" class="form-control">
+                <option value="">-- Select a State --</option>
+                {% for state in states %}
+                    <option value="{{ state }}">{{ state }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="form-group mt-3">
+            <label for="city">Filter by City (Optional):</label>
+            <input type="text" name="city" id="city" class="form-control" placeholder="Enter city name (optional)">
+        </div>
+        
+        <div class="form-group mt-3">
+            <button type="submit" class="btn btn-primary">Start Scraping</button>
+        </div>
+    </form>
+
+    <div class="container mt-5">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h3>Supabase Database Status</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4>Database Statistics</h4>
+                        <p><strong>Total Postcodes:</strong> <span id="total-postcodes">{{ db_stats.total_postcodes }}</span></p>
+                        
+                        <div class="region-counts">
+                        {% if db_stats.region_counts %}
+                        <h5>Postcodes by Region:</h5>
+                        <ul>
+                            {% for region, count in db_stats.region_counts.items() %}
+                            <li><strong>{{ region }}:</strong> {{ count }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h4>Recent Database Entries</h4>
+                        <div class="table-responsive">
+                        {% if db_stats.recent_entries %}
+                            <table class="table table-striped table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Post-Code</th>
+                                        <th>City/Town</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for entry in db_stats.recent_entries %}
+                                    <tr>
+                                        <td>{{ entry['Post-Code'] }}</td>
+                                        <td>{{ entry['City/Town'] }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <p>No recent entries found.</p>
+                        {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="status-area" class="job-status hidden">
+        <h2>Job Status</h2>
+        <p id="status-message">Waiting...</p>
+        <div id="results-area" class="results-table hidden">
+            <h3>Results Preview (First 5)</h3>
+            <table id="results-table">
+                <thead>
+                    <tr><th>Code</th><th>Place Name</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <a id="download-link" href="#" class="hidden">Download Full CSV</a>
+        </div>
+    </div>
+
+    <hr>
+
+    <div id="request-info-area">
+        <h2>Request Full Access / More Information</h2>
+        <p>Interested in the full dataset or custom scraping features?</p>
+        <button id="request-info-button">Request More Info</button>
+        <p id="request-info-status" class="hidden"></p>
+    </div>
+    <script>
+        const form = document.getElementById('scrape-form');
+        const statusArea = document.getElementById('status-area');
+        const statusMessage = document.getElementById('status-message');
+        const resultsArea = document.getElementById('results-area');
+        const resultsTableBody = document.querySelector('#results-table tbody');
+        const downloadLink = document.getElementById('download-link');
+        const requestInfoButton = document.getElementById('request-info-button');
+        const requestInfoStatus = document.getElementById('request-info-status');
+
+        let currentJobId = null;
+        let intervalId = null;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            // Reset UI
+            statusArea.classList.remove('hidden');
+            resultsArea.classList.add('hidden');
+            resultsTableBody.innerHTML = ''; // Clear previous results
+            requestInfoStatus.classList.add('hidden');
+            requestInfoStatus.textContent = '';
+            downloadLink.classList.add('hidden');
+            statusMessage.textContent = 'Starting job...';
+
+            const formData = new FormData(form);
+            const response = await fetch('/scrape', { method: 'POST', body: formData });
+            const data = await response.json();
+
+            if (data.status === 'started') {
+                currentJobId = data.job_id;
+                statusMessage.textContent = `Job ${currentJobId} started. Checking status...`;
+                // Start polling
+                if (intervalId) clearInterval(intervalId); // Clear previous interval if any
+                intervalId = setInterval(checkJobStatus, 5000); // Check every 5 seconds
+            } else {
+                statusMessage.textContent = `Error starting job: ${data.message || 'Unknown error'}`;
+            }
+        });
+
+        async function checkJobStatus() {
+            if (!currentJobId) return;
+
+            try {
+                const response = await fetch(`/job/${currentJobId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+
+                statusMessage.textContent = `Job ${currentJobId}: ${data.status}`;
+
+                if (data.status === 'completed') {
+                    clearInterval(intervalId);
+                    intervalId = null;
+                    
+                    // Ensure results_count is a number
+                    const resultsCount = typeof data.results_count === 'number' ? data.results_count : 0;
+                    
+                    // Display a more informative message
+                    if (resultsCount > 0) {
+                        statusMessage.textContent = `Job ${currentJobId} completed! Found ${resultsCount} postcodes.`;
+                    } else {
+                        statusMessage.textContent = `Job ${currentJobId} completed! No postcodes found for the selected criteria.`;
+                    }
+                    
+                    // Display preview data if available
+                    if (data.preview && Array.isArray(data.preview)) {
+                        displayResults(data.preview);
+                    }
+                    
+                    // Show download link if there are results
+                    if (resultsCount > 0) {
+                        downloadLink.href = `/download/${currentJobId}`;
+                        downloadLink.classList.remove('hidden');
+                    }
+                    
+                    // Update database stats if available
+                    if (data.db_stats) {
+                        updateDatabaseStats(data.db_stats);
+                    }
+                } else if (data.status === 'failed') {
+                    clearInterval(intervalId);
+                    intervalId = null;
+                    statusMessage.textContent = `Job ${currentJobId} failed: ${data.message || 'Unknown error'}`;
+                    console.error("Error details:", data.error_details);
+                } else {
+                    // Still pending or running, continue polling
+                    statusMessage.textContent = `Job ${currentJobId}: ${data.status}...`;
+                }
+            } catch (error) {
+                console.error('Error checking job status:', error);
+                statusMessage.textContent = `Error checking status for job ${currentJobId}.`;
+                clearInterval(intervalId); // Stop polling on error
+                intervalId = null;
+            }
+        }
+
+        function displayResults(previewData) {
+            resultsTableBody.innerHTML = ''; // Clear previous results
+            
+            if (previewData && previewData.length > 0) {
+                previewData.forEach(item => {
+                    const row = resultsTableBody.insertRow();
+                    const postCode = item['Post-Code'] || 'N/A';
+                    const cityTown = item['City/Town'] || 'N/A';
+                    
+                    row.insertCell().textContent = postCode;
+                    row.insertCell().textContent = cityTown;
+                });
+                resultsArea.classList.remove('hidden');
+            } else {
+                // If no preview data, add a message row
+                const row = resultsTableBody.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 2;
+                cell.textContent = 'No postcodes found for the selected criteria';
+                resultsArea.classList.remove('hidden');
+            }
+        }
+
+        function updateDatabaseStats(stats) {
+            if (!stats) return;
+            
+            // Update total postcodes
+            const totalPostcodesElement = document.getElementById('total-postcodes');
+            if (totalPostcodesElement) {
+                totalPostcodesElement.textContent = stats.total_postcodes;
+            }
+            
+            // Update recent entries table
+            const recentEntriesTable = document.querySelector('.table-responsive');
+            if (recentEntriesTable && stats.recent_entries && stats.recent_entries.length > 0) {
+                let tableHtml = `
+                    <table class="table table-striped table-sm">
+                        <thead>
+                            <tr>
+                                <th>Post-Code</th>
+                                <th>City/Town</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                
+                stats.recent_entries.forEach(entry => {
+                    tableHtml += `
+                        <tr>
+                            <td>${entry['Post-Code'] || 'N/A'}</td>
+                            <td>${entry['City/Town'] || 'N/A'}</td>
+                        </tr>`;
+                });
+                
+                tableHtml += `
+                        </tbody>
+                    </table>`;
+                
+                recentEntriesTable.innerHTML = tableHtml;
+            }
+            
+            // Update region counts if available
+            const regionCountsElement = document.querySelector('.region-counts');
+            if (regionCountsElement && stats.region_counts) {
+                let regionHtml = '<h5>Postcodes by Region:</h5><ul>';
+                
+                for (const [region, count] of Object.entries(stats.region_counts)) {
+                    regionHtml += `<li><strong>${region}:</strong> ${count}</li>`;
+                }
+                
+                regionHtml += '</ul>';
+                regionCountsElement.innerHTML = regionHtml;
+            }
+        }
+
+        requestInfoButton.addEventListener('click', async () => {
+            requestInfoStatus.classList.remove('hidden');
+            requestInfoStatus.textContent = 'Sending request...';
+            try {
+                const response = await fetch('/request-info', { method: 'POST' });
+                const data = await response.json();
+                if (response.ok && data.status === 'success') {
+                    requestInfoStatus.textContent = 'Request sent successfully! We will contact you soon.';
+                } else {
+                    throw new Error(data.message || 'Failed to send request.');
+                }
+            } catch (error) {
+                console.error('Error sending request info:', error);
+                requestInfoStatus.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        // Add a simple search filter to the state dropdown
+        document.addEventListener('DOMContentLoaded', function() {
+            const stateSelect = document.getElementById('state');
+            
+            // Create a wrapper div for the custom select
+            const wrapper = document.createElement('div');
+            wrapper.className = 'custom-select-wrapper';
+            stateSelect.parentNode.insertBefore(wrapper, stateSelect);
+            
+            // Create a search input
+            const searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.className = 'form-control mb-2';
+            searchInput.placeholder = 'Search states...';
+            wrapper.appendChild(searchInput);
+            
+            // Move the select into the wrapper
+            wrapper.appendChild(stateSelect);
+            
+            // Add event listener for the search input
+            searchInput.addEventListener('input', function() {
+                const filter = this.value.toLowerCase();
+                const options = stateSelect.options;
+                
+                for (let i = 0; i < options.length; i++) {
+                    const option = options[i];
+                    const txtValue = option.textContent || option.innerText;
+                    
+                    if (txtValue.toLowerCase().indexOf(filter) > -1) {
+                        option.style.display = "";
+                    } else {
+                        option.style.display = "none";
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
